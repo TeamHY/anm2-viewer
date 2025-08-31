@@ -1,24 +1,37 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { Anm2PreviewProvider } from './Anm2PreviewProvider';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	console.log('ANM2 Viewer extension is now active!');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "anm2-viewer" is now active!');
+	// Register the preview provider
+	context.subscriptions.push(
+		Anm2PreviewProvider.register(context.extensionUri)
+	);
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
+	// Register file association commands
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anm2-viewer.openPreview', (uri?: vscode.Uri) => {
+			if (!uri) {
+				// If no URI provided, try to get from active editor
+				const activeEditor = vscode.window.activeTextEditor;
+				if (activeEditor && activeEditor.document.fileName.endsWith('.anm2')) {
+					uri = activeEditor.document.uri;
+				} else {
+					vscode.window.showErrorMessage('ANM2 파일을 먼저 선택하세요.');
+					return;
+				}
+			}
+			
+			vscode.commands.executeCommand('anm2-viewer.preview', uri);
+		})
+	);
+
+	// Legacy command for backwards compatibility
 	const disposable = vscode.commands.registerCommand('anm2-viewer.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
 		vscode.window.showInformationMessage('Hello World from anm2-viewer!');
 	});
-
+	
 	context.subscriptions.push(disposable);
 }
 

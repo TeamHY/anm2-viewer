@@ -9,15 +9,57 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:anm2"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
+        "command": "anm2-viewer.openPreview",
+        "title": "ANM2 미리보기 열기",
+        "icon": "$(open-preview)"
+      },
+      {
         "command": "anm2-viewer.helloWorld",
         "title": "Hello World"
       }
-    ]
+    ],
+    "languages": [
+      {
+        "id": "anm2",
+        "aliases": [
+          "ANM2",
+          "anm2"
+        ],
+        "extensions": [
+          ".anm2"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "anm2-viewer.openPreview",
+          "when": "resourceExtname == .anm2",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "anm2-viewer.openPreview",
+          "when": "resourceExtname == .anm2",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "anm2-viewer.openPreview",
+          "when": "resourceExtname == .anm2"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",
@@ -31,17 +73,22 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.103.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.103.0",
+    "@types/xml2js": "^0.4.14",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
-    "eslint": "^9.32.0",
-    "typescript": "^5.9.2",
-    "ts-loader": "^9.5.2",
-    "webpack": "^5.101.0",
-    "webpack-cli": "^6.0.1",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.32.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.9.2",
+    "webpack": "^5.101.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "pixi.js": "^8.12.0",
+    "xml2js": "^0.6.2"
   }
 }
