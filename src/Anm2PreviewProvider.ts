@@ -3,81 +3,63 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Anm2Parser } from './parser/Anm2Parser';
 
-export class Anm2PreviewProvider {
+class Anm2Document implements vscode.CustomDocument {
+  constructor(
+    public readonly uri: vscode.Uri,
+    public readonly anm2Data: any,
+    public readonly spritesheetData: Map<number, string>
+  ) {}
+
+  dispose(): void {}
+}
+
+export class Anm2PreviewProvider implements vscode.CustomReadonlyEditorProvider<Anm2Document> {
   private static readonly viewType = 'anm2.preview';
-  private readonly _panels = new Map<string, vscode.WebviewPanel>();
 
   constructor(private readonly _extensionUri: vscode.Uri) {}
 
   public static register(extensionUri: vscode.Uri): vscode.Disposable {
     const provider = new Anm2PreviewProvider(extensionUri);
-    const disposables: vscode.Disposable[] = [];
-
-    disposables.push(
-      vscode.commands.registerCommand('anm2-viewer.preview', (uri: vscode.Uri) => {
-        provider.showPreview(uri);
-      })
-    );
-
-    disposables.push(
-      vscode.workspace.onDidChangeTextDocument(e => {
-        const fileName = path.basename(e.document.fileName);
-        if (fileName.endsWith('.anm2')) {
-          const panel = provider._panels.get(e.document.uri.toString());
-          if (panel) {
-            provider.updatePreview(panel, e.document.uri);
-          }
-        }
-      })
-    );
-
-    return vscode.Disposable.from(...disposables);
-  }
-
-  private async showPreview(uri: vscode.Uri) {
-    const fileName = path.basename(uri.fsPath);
-    const panelTitle = `ANM2 Preview: ${fileName}`;
-
-    let panel = this._panels.get(uri.toString());
     
-    if (panel) {
-      panel.reveal(vscode.ViewColumn.Beside);
-      return;
-    }
-
-    panel = vscode.window.createWebviewPanel(
+    return vscode.window.registerCustomEditorProvider(
       Anm2PreviewProvider.viewType,
-      panelTitle,
-      vscode.ViewColumn.Beside,
+      provider,
       {
-        enableScripts: true,
-        localResourceRoots: [this._extensionUri],
-        retainContextWhenHidden: true
+        supportsMultipleEditorsPerDocument: false,
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
       }
     );
-
-    this._panels.set(uri.toString(), panel);
-
-    panel.onDidDispose(() => {
-      this._panels.delete(uri.toString());
-    });
-
-    await this.updatePreview(panel, uri);
   }
 
-  private async updatePreview(panel: vscode.WebviewPanel, uri: vscode.Uri) {
-    try {
-      const document = await vscode.workspace.openTextDocument(uri);
-      const anm2Content = document.getText();
-      
-      const anm2Data = await Anm2Parser.parseFromString(anm2Content);
-      const spritesheetData = await this.loadSpritesheets(uri, anm2Data);
-      
-      panel.webview.html = this.getWebviewContent(panel.webview, anm2Data, spritesheetData, uri);
-    } catch (error) {
-      panel.webview.html = this.getErrorContent(error instanceof Error ? error.message : 'Unknown error');
-    }
+  async openCustomDocument(uri: vscode.Uri): Promise<Anm2Document> {
+    const document = await vscode.workspace.openTextDocument(uri);
+    const anm2Content = document.getText();
+    
+    const anm2Data = await Anm2Parser.parseFromString(anm2Content);
+    const spritesheetData = await this.loadSpritesheets(uri, anm2Data);
+    
+    return new Anm2Document(uri, anm2Data, spritesheetData);
   }
+
+  async resolveCustomEditor(
+    document: Anm2Document,
+    webviewPanel: vscode.WebviewPanel
+  ): Promise<void> {
+    webviewPanel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri]
+    };
+
+    webviewPanel.webview.html = this.getWebviewContent(
+      webviewPanel.webview,
+      document.anm2Data,
+      document.spritesheetData,
+      document.uri
+    );
+  }
+
 
   private async loadSpritesheets(anm2Uri: vscode.Uri, anm2Data: any): Promise<Map<number, string>> {
     const spritesheetData = new Map<number, string>();
@@ -123,63 +105,49 @@ export class Anm2PreviewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'media', 'preview.css')
     );
 
+    const codiconsUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+    );
+
+    const pixiUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'pixi.js', 'dist', 'pixi.min.js')
+    );
+
     return `
       <!DOCTYPE html>
-      <html lang="ko">
+      <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>ANM2 Preview</title>
         <link href="${styleUri}" rel="stylesheet">
+        <link href="${codiconsUri}" rel="stylesheet">
       </head>
       <body>
         <div class="preview-container">
-          <div class="controls-panel">
-            <div class="animation-controls">
-              <select id="animation-select">
-                ${anm2Data.animations.map((anim: any) => 
-                  `<option value="${anim.name}" ${anim.name === anm2Data.defaultAnimation ? 'selected' : ''}>${anim.name}</option>`
-                ).join('')}
-              </select>
-              <button id="play-btn">재생</button>
-              <button id="pause-btn">일시정지</button>
-              <button id="stop-btn">정지</button>
-            </div>
-            
-            <div class="frame-controls">
-              <label for="frame-slider">프레임: </label>
-              <input type="range" id="frame-slider" min="0" max="0" value="0">
-              <span id="frame-display">0 / 0</span>
-            </div>
-            
-            <div class="speed-controls">
-              <label for="speed-slider">속도: </label>
-              <input type="range" id="speed-slider" min="0.1" max="2" step="0.1" value="1">
-              <span id="speed-display">1.0x</span>
-            </div>
-          </div>
-          
           <div class="canvas-container">
             <canvas id="preview-canvas"></canvas>
-          </div>
-          
-          <div class="info-panel">
-            <h3>애니메이션 정보</h3>
-            <div class="info-item">
-              <span class="label">FPS:</span>
-              <span class="value">${anm2Data.info.fps}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">현재 애니메이션:</span>
-              <span class="value" id="current-animation">${anm2Data.defaultAnimation}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">루프:</span>
-              <span class="value" id="loop-status">-</span>
-            </div>
-            <div class="info-item">
-              <span class="label">총 프레임:</span>
-              <span class="value" id="total-frames">-</span>
+            
+            <div class="floating-controls">
+              <div class="controls-row">
+                <select id="animation-select" class="animation-selector">
+                  ${anm2Data.animations.map((anim: any) => 
+                    `<option value="${anim.name}" ${anim.name === anm2Data.defaultAnimation ? 'selected' : ''}>${anim.name}</option>`
+                  ).join('')}
+                </select>
+                
+                <button id="play-pause-btn" class="play-pause-button" title="Play/Pause">
+                  <i class="codicon codicon-play play-icon"></i>
+                  <i class="codicon codicon-debug-pause pause-icon" style="display: none;"></i>
+                </button>
+                
+                <input type="text" id="zoom-input" class="zoom-input" value="100%" title="Edit zoom level">
+              </div>
+              
+              <div class="progress-row">
+                <span id="frame-display" class="frame-display">0 / 0</span>
+                <input type="range" id="frame-slider" class="frame-slider" min="0" max="0" value="0">
+              </div>
             </div>
           </div>
         </div>
@@ -189,7 +157,7 @@ export class Anm2PreviewProvider {
           window.spritesheetData = ${JSON.stringify(Array.from(spritesheetData.entries()))};
           window.workspaceUri = "${uri.toString()}";
         </script>
-        <script src="https://unpkg.com/pixi.js@8.0.0/dist/pixi.min.js"></script>
+        <script src="${pixiUri}"></script>
         <script src="${scriptUri}"></script>
       </body>
       </html>
@@ -199,7 +167,7 @@ export class Anm2PreviewProvider {
   private getErrorContent(error: string): string {
     return `
       <!DOCTYPE html>
-      <html lang="ko">
+      <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -225,7 +193,7 @@ export class Anm2PreviewProvider {
       </head>
       <body>
         <div class="error">
-          <h3>ANM2 파일 로드 오류</h3>
+          <h3>ANM2 File Load Error</h3>
           <p>${error}</p>
         </div>
       </body>

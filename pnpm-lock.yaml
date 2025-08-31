@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@vscode/codicons':
+        specifier: ^0.0.39
+        version: 0.0.39
       pixi.js:
         specifier: ^8.12.0
         version: 8.12.0
@@ -256,6 +259,9 @@ packages:
   '@typescript-eslint/visitor-keys@8.41.0':
     resolution: {integrity: sha512-+GeGMebMCy0elMNg67LRNoVnUFPIm37iu5CmHESVx56/9Jsfdpsvbv605DQ81Pi/x11IdKUsS5nzgTYbCQU9fg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@vscode/codicons@0.0.39':
+    resolution: {integrity: sha512-gO09UZrOBONyzI8LWPRsCahnmUR16hkRQCJOSJzX8L4dC5aa6YGP4nS+gh5oSekMlM8LFJXMAgqBMGGiktdRJw==}
 
   '@vscode/test-cli@0.0.11':
     resolution: {integrity: sha512-qO332yvzFqGhBMJrp6TdwbIydiHgCtxXc2Nl6M58mbH/Z+0CyLR76Jzv4YWPEthhrARprzCRJUqzFvTHFhTj7Q==}
@@ -1648,6 +1654,8 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.41.0
       eslint-visitor-keys: 4.2.1
+
+  '@vscode/codicons@0.0.39': {}
 
   '@vscode/test-cli@0.0.11':
     dependencies:

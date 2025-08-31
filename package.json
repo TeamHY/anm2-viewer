@@ -14,6 +14,17 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "customEditors": [
+      {
+        "viewType": "anm2.preview",
+        "displayName": "ANM2 Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.anm2"
+          }
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "anm2-viewer.openPreview",
@@ -21,8 +32,9 @@
         "icon": "$(open-preview)"
       },
       {
-        "command": "anm2-viewer.helloWorld",
-        "title": "Hello World"
+        "command": "anm2-viewer.openAsText",
+        "title": "ANM2 소스코드 보기",
+        "icon": "$(file-text)"
       }
     ],
     "languages": [
@@ -44,18 +56,32 @@
           "command": "anm2-viewer.openPreview",
           "when": "resourceExtname == .anm2",
           "group": "navigation"
+        },
+        {
+          "command": "anm2-viewer.openAsText",
+          "when": "resourceExtname == .anm2",
+          "group": "navigation"
         }
       ],
       "editor/title": [
         {
           "command": "anm2-viewer.openPreview",
-          "when": "resourceExtname == .anm2",
+          "when": "resourceExtname == .anm2 && activeCustomEditorId != anm2.preview",
+          "group": "navigation"
+        },
+        {
+          "command": "anm2-viewer.openAsText",
+          "when": "resourceExtname == .anm2 && activeCustomEditorId == anm2.preview",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
           "command": "anm2-viewer.openPreview",
+          "when": "resourceExtname == .anm2"
+        },
+        {
+          "command": "anm2-viewer.openAsText",
           "when": "resourceExtname == .anm2"
         }
       ]
@@ -88,6 +114,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.39",
     "pixi.js": "^8.12.0",
     "xml2js": "^0.6.2"
   }

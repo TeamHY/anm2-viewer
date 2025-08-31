@@ -11,9 +11,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register file association commands
 	context.subscriptions.push(
-		vscode.commands.registerCommand('anm2-viewer.openPreview', (uri?: vscode.Uri) => {
+		vscode.commands.registerCommand('anm2-viewer.openPreview', async (uri?: vscode.Uri) => {
 			if (!uri) {
-				// If no URI provided, try to get from active editor
 				const activeEditor = vscode.window.activeTextEditor;
 				if (activeEditor && activeEditor.document.fileName.endsWith('.anm2')) {
 					uri = activeEditor.document.uri;
@@ -23,7 +22,51 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 			
-			vscode.commands.executeCommand('anm2-viewer.preview', uri);
+			// Check if preview is already open
+			const existingTab = vscode.window.tabGroups.all
+				.flatMap(group => group.tabs)
+				.find(tab => 
+					tab.input instanceof vscode.TabInputCustom && 
+					tab.input.viewType === 'anm2.preview' &&
+					tab.input.uri.toString() === uri!.toString()
+				);
+			
+			if (existingTab && existingTab.input instanceof vscode.TabInputCustom) {
+				// Focus existing preview tab
+				await vscode.commands.executeCommand('vscode.openWith', existingTab.input.uri, 'anm2.preview', existingTab.group.viewColumn);
+			} else {
+				await vscode.commands.executeCommand('vscode.openWith', uri, 'anm2.preview', vscode.ViewColumn.Beside);
+			}
+		})
+	);
+
+	// Register text editor command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('anm2-viewer.openAsText', async (uri?: vscode.Uri) => {
+			if (!uri) {
+				const activeEditor = vscode.window.activeTextEditor;
+				if (activeEditor && activeEditor.document.fileName.endsWith('.anm2')) {
+					uri = activeEditor.document.uri;
+				} else {
+					vscode.window.showErrorMessage('ANM2 파일을 먼저 선택하세요.');
+					return;
+				}
+			}
+			
+			// Check if text editor is already open
+			const existingTab = vscode.window.tabGroups.all
+				.flatMap(group => group.tabs)
+				.find(tab => 
+					tab.input instanceof vscode.TabInputText &&
+					tab.input.uri.toString() === uri!.toString()
+				);
+			
+			if (existingTab && existingTab.input instanceof vscode.TabInputText) {
+				// Focus existing text tab
+				await vscode.window.showTextDocument(existingTab.input.uri, { viewColumn: existingTab.group.viewColumn });
+			} else {
+				await vscode.commands.executeCommand('vscode.openWith', uri, 'default', vscode.ViewColumn.Beside);
+			}
 		})
 	);
 

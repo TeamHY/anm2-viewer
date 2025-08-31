@@ -16,16 +16,19 @@
       this.currentAnimation = anm2Data.defaultAnimation;
       this.currentFrame = 0;
       this.isPlaying = false;
-      this.animationSpeed = 1;
       this.frameTimer = 0;
       this.lastTime = 0;
+      this.zoom = 1;
+      this.isDragging = false;
+      this.dragStart = { x: 0, y: 0 };
+      this.containerOffset = { x: 0, y: 0 };
+      this.isZoomInputFocused = false;
       
       this.initializePixi();
     }
 
     async initializePixi() {
       try {
-        // 컨테이너 크기에 맞게 캔버스 크기 설정
         const canvasContainer = this.canvas.parentElement;
         const containerWidth = canvasContainer ? canvasContainer.clientWidth : 800;
         const containerHeight = canvasContainer ? canvasContainer.clientHeight : 600;
@@ -35,9 +38,9 @@
           canvas: this.canvas,
           width: Math.max(containerWidth, 400),
           height: Math.max(containerHeight, 300),
-          backgroundColor: 0x000000,  // 투명 배경을 위해 검은색으로 설정
-          backgroundAlpha: 0,         // 배경을 완전히 투명하게
-          antialias: true
+          backgroundColor: 0x000000,
+          backgroundAlpha: 0,
+          antialias: false
         });
 
         this.container = new PIXI.Container();
@@ -48,18 +51,19 @@
         this.initializeLayers();
         this.initializeNulls();
         this.updateFrame();
+        this.updateControls();
+        this.setupZoomAndPan();
         
         this.app.ticker.add(() => this.update());
         
         console.log('PIXI application initialized successfully');
       } catch (error) {
         console.error('Failed to initialize PIXI:', error);
-        this.showError('PIXI 초기화 실패: ' + error.message);
+        this.showError('PIXI initialization failed: ' + error.message);
       }
     }
 
     async loadSpritesheets() {
-      // 익스텐션에서 전달받은 스프라이트시트 데이터 사용
       const spritesheetDataArray = window.spritesheetData || [];
       const spritesheetMap = new Map(spritesheetDataArray);
 
@@ -68,7 +72,6 @@
           const dataUrl = spritesheetMap.get(spritesheet.id);
           
           if (dataUrl) {
-            // base64 데이터에서 텍스처 생성
             const texture = await PIXI.Assets.load(dataUrl);
             texture.source.scaleMode = 'nearest';
             
@@ -79,7 +82,6 @@
             
             console.log(`Loaded spritesheet: ${spritesheet.path}`);
           } else {
-            // 데이터가 없으면 대체 텍스처 생성
             console.warn(`No data for spritesheet: ${spritesheet.path}`);
             const missingTexture = this.createMissingTexture();
             this.spritesheets.set(spritesheet.id, {
@@ -89,7 +91,6 @@
           }
         } catch (error) {
           console.error(`Failed to load spritesheet ${spritesheet.path}:`, error);
-          // 오류 시 대체 텍스처 사용
           const missingTexture = this.createMissingTexture();
           this.spritesheets.set(spritesheet.id, {
             texture: missingTexture,
@@ -100,7 +101,6 @@
     }
 
     createMissingTexture(width = 256, height = 256) {
-      // 누락된 텍스처를 위한 체크무늬 패턴 생성
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -116,7 +116,6 @@
           }
         }
         
-        // 중앙에 "?" 표시
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
@@ -216,10 +215,6 @@
       this.updateControls();
     }
 
-    setSpeed(speed) {
-      this.animationSpeed = speed;
-      this.updateControls();
-    }
 
     setCurrentFrame(frame) {
       const animation = this.getCurrentAnimation();
@@ -246,7 +241,7 @@
       if (!animation) return;
 
       const targetFrameTime = 1 / this.anm2Data.info.fps;
-      this.frameTimer += deltaTime * this.animationSpeed;
+      this.frameTimer += deltaTime;
 
       if (this.frameTimer >= targetFrameTime) {
         this.nextFrame();
@@ -264,11 +259,8 @@
         if (animation.loop) {
           this.currentFrame = 0;
         } else {
-          this.currentFrame = animation.frameNum - 1;
+          this.currentFrame = 0;
           this.isPlaying = false;
-          if (animation.frameNum === 1) {
-            this.currentFrame = 0;
-          }
         }
       }
 
@@ -492,25 +484,38 @@
       // Update frame display
       const frameDisplay = document.getElementById('frame-display');
       const frameSlider = document.getElementById('frame-slider');
-      const currentAnimationEl = document.getElementById('current-animation');
-      const loopStatusEl = document.getElementById('loop-status');
-      const totalFramesEl = document.getElementById('total-frames');
+      const zoomInput = document.getElementById('zoom-input');
 
-      if (frameDisplay) frameDisplay.textContent = `${this.currentFrame} / ${animation.frameNum}`;
+      if (frameDisplay) frameDisplay.textContent = `${this.currentFrame + 1} / ${animation.frameNum}`;
       if (frameSlider) {
         frameSlider.max = animation.frameNum - 1;
         frameSlider.value = this.currentFrame;
       }
-      if (currentAnimationEl) currentAnimationEl.textContent = this.currentAnimation;
-      if (loopStatusEl) loopStatusEl.textContent = animation.loop ? '예' : '아니오';
-      if (totalFramesEl) totalFramesEl.textContent = animation.frameNum;
+      if (zoomInput && !this.isZoomInputFocused) zoomInput.value = `${Math.round(this.zoom * 100)}%`;
 
       // Update button states
-      const playBtn = document.getElementById('play-btn');
-      const pauseBtn = document.getElementById('pause-btn');
+      const playPauseBtn = document.getElementById('play-pause-btn');
       
-      if (playBtn) playBtn.disabled = this.isPlaying;
-      if (pauseBtn) pauseBtn.disabled = !this.isPlaying;
+      if (playPauseBtn) {
+        const playIcon = playPauseBtn.querySelector('.play-icon');
+        const pauseIcon = playPauseBtn.querySelector('.pause-icon');
+        
+        if (animation.frameNum === 1) {
+          playPauseBtn.disabled = true;
+          playPauseBtn.style.opacity = '0.5';
+        } else {
+          playPauseBtn.disabled = false;
+          playPauseBtn.style.opacity = '1';
+          
+          if (this.isPlaying) {
+            if (playIcon) playIcon.style.display = 'none';
+            if (pauseIcon) pauseIcon.style.display = 'block';
+          } else {
+            if (playIcon) playIcon.style.display = 'block';
+            if (pauseIcon) pauseIcon.style.display = 'none';
+          }
+        }
+      }
     }
 
     showError(message) {
@@ -518,17 +523,88 @@
       if (canvasContainer) {
         canvasContainer.innerHTML = `
           <div class="error">
-            <h3>오류</h3>
+            <h3>Error</h3>
             <p>${message}</p>
           </div>
         `;
       }
     }
 
+    setupZoomAndPan() {
+      this.canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.1, Math.min(20, this.zoom * zoomFactor));
+        
+        const worldMouseX = (mouseX - this.app.renderer.width / 2 - this.containerOffset.x) / this.zoom;
+        const worldMouseY = (mouseY - this.app.renderer.height / 2 - this.containerOffset.y) / this.zoom;
+        
+        this.zoom = newZoom;
+        this.container.scale.set(this.zoom);
+        
+        this.containerOffset.x = mouseX - this.app.renderer.width / 2 - worldMouseX * this.zoom;
+        this.containerOffset.y = mouseY - this.app.renderer.height / 2 - worldMouseY * this.zoom;
+        
+        this.updateContainerPosition();
+        this.updateControls();
+      });
+
+      this.canvas.addEventListener('mousedown', (e) => {
+        this.isDragging = true;
+        this.dragStart.x = e.clientX - this.containerOffset.x;
+        this.dragStart.y = e.clientY - this.containerOffset.y;
+        this.canvas.style.cursor = 'grabbing';
+      });
+
+      this.canvas.addEventListener('mousemove', (e) => {
+        if (this.isDragging) {
+          this.containerOffset.x = e.clientX - this.dragStart.x;
+          this.containerOffset.y = e.clientY - this.dragStart.y;
+          this.updateContainerPosition();
+        }
+      });
+
+      this.canvas.addEventListener('mouseup', () => {
+        this.isDragging = false;
+        this.canvas.style.cursor = 'default';
+      });
+
+      this.canvas.addEventListener('mouseleave', () => {
+        this.isDragging = false;
+        this.canvas.style.cursor = 'default';
+      });
+    }
+
+    updateContainerPosition() {
+      this.container.position.set(
+        this.app.renderer.width / 2 + this.containerOffset.x,
+        this.app.renderer.height / 2 + this.containerOffset.y
+      );
+    }
+
+    resetZoom() {
+      this.zoom = 1;
+      this.containerOffset = { x: 0, y: 0 };
+      this.container.scale.set(this.zoom);
+      this.updateContainerPosition();
+      this.updateControls();
+    }
+
+    setZoom(zoomLevel) {
+      this.zoom = Math.max(0.1, Math.min(5, zoomLevel));
+      this.container.scale.set(this.zoom);
+      this.updateContainerPosition();
+      this.updateControls();
+    }
+
     resize(width, height) {
       if (this.app) {
         this.app.renderer.resize(width, height);
-        this.container.position.set(this.app.renderer.width / 2, this.app.renderer.height / 2);
+        this.updateContainerPosition();
       }
     }
 
@@ -539,7 +615,6 @@
     }
   }
 
-  // Initialize when DOM is loaded
   document.addEventListener('DOMContentLoaded', () => {
     if (!window.anm2Data) {
       console.error('ANM2 data not found');
@@ -548,14 +623,10 @@
 
     const renderer = new Anm2PreviewRenderer('preview-canvas', window.anm2Data);
     
-    // Set up event listeners
     const animationSelect = document.getElementById('animation-select');
-    const playBtn = document.getElementById('play-btn');
-    const pauseBtn = document.getElementById('pause-btn');
-    const stopBtn = document.getElementById('stop-btn');
+    const playPauseBtn = document.getElementById('play-pause-btn');
     const frameSlider = document.getElementById('frame-slider');
-    const speedSlider = document.getElementById('speed-slider');
-    const speedDisplay = document.getElementById('speed-display');
+    const zoomInput = document.getElementById('zoom-input');
 
     if (animationSelect) {
       animationSelect.addEventListener('change', (e) => {
@@ -563,21 +634,13 @@
       });
     }
 
-    if (playBtn) {
-      playBtn.addEventListener('click', () => {
-        renderer.play();
-      });
-    }
-
-    if (pauseBtn) {
-      pauseBtn.addEventListener('click', () => {
-        renderer.pause();
-      });
-    }
-
-    if (stopBtn) {
-      stopBtn.addEventListener('click', () => {
-        renderer.stop();
+    if (playPauseBtn) {
+      playPauseBtn.addEventListener('click', () => {
+        if (renderer.isPlaying) {
+          renderer.pause();
+        } else {
+          renderer.play();
+        }
       });
     }
 
@@ -587,15 +650,33 @@
       });
     }
 
-    if (speedSlider && speedDisplay) {
-      speedSlider.addEventListener('input', (e) => {
-        const speed = parseFloat(e.target.value);
-        renderer.setSpeed(speed);
-        speedDisplay.textContent = `${speed.toFixed(1)}x`;
+    if (zoomInput) {
+      zoomInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const value = e.target.value.trim();
+          let zoom = parseFloat(value.replace('%', ''));
+          
+          if (!isNaN(zoom) && zoom > 0) {
+            zoom = Math.max(10, Math.min(2000, zoom));
+            renderer.setZoom(zoom / 100);
+          } else {
+            e.target.value = `${Math.round(renderer.zoom * 100)}%`;
+          }
+          e.target.blur();
+        }
+      });
+
+      zoomInput.addEventListener('blur', (e) => {
+        renderer.isZoomInputFocused = false;
+        e.target.value = `${Math.round(renderer.zoom * 100)}%`;
+      });
+
+      zoomInput.addEventListener('focus', (e) => {
+        renderer.isZoomInputFocused = true;
+        e.target.select();
       });
     }
 
-    // Handle window resize
     window.addEventListener('resize', () => {
       const canvas = document.getElementById('preview-canvas');
       if (canvas) {
@@ -603,7 +684,19 @@
       }
     });
 
-    // Store renderer reference for potential cleanup
     window.anm2Renderer = renderer;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === '0') {
+        e.preventDefault();
+        renderer.resetZoom();
+      } else if (e.ctrlKey && e.key === '=') {
+        e.preventDefault();
+        renderer.setZoom(renderer.zoom * 1.2);
+      } else if (e.ctrlKey && e.key === '-') {
+        e.preventDefault();
+        renderer.setZoom(renderer.zoom / 1.2);
+      }
+    });
   });
 })();
