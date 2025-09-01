@@ -1,6 +1,7 @@
 {
   "name": "anm2-viewer",
   "displayName": "anm2-viewer",
+  "publisher": "TeamHY",
   "description": "Anm2 file viewer for The Binding of Isaac: Rebirth",
   "version": "0.0.1",
   "engines": {
@@ -32,12 +33,12 @@
     "commands": [
       {
         "command": "anm2-viewer.openPreview",
-        "title": "ANM2 미리보기 열기",
+        "title": "Open ANM2 Preview",
         "icon": "$(open-preview)"
       },
       {
         "command": "anm2-viewer.openAsText",
-        "title": "ANM2 소스코드 보기",
+        "title": "Open ANM2 Source",
         "icon": "$(file-text)"
       }
     ],
@@ -92,13 +93,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run package",
+    "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test"
   },

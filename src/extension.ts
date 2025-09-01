@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (activeEditor && activeEditor.document.fileName.endsWith('.anm2')) {
 					uri = activeEditor.document.uri;
 				} else {
-					vscode.window.showErrorMessage('ANM2 파일을 먼저 선택하세요.');
+					vscode.window.showErrorMessage('Please select an ANM2 file first.');
 					return;
 				}
 			}
@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
 				if (activeEditor && activeEditor.document.fileName.endsWith('.anm2')) {
 					uri = activeEditor.document.uri;
 				} else {
-					vscode.window.showErrorMessage('ANM2 파일을 먼저 선택하세요.');
+					vscode.window.showErrorMessage('Please select an ANM2 file first.');
 					return;
 				}
 			}
